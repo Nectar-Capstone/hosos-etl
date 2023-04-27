@@ -1,7 +1,11 @@
 import mysql.connector
+import schedule
+import time
 import pandas as pd
 
-listOfPatient = (1, 3, 5, 10)
+# Have not cap create_date yet -> add WHERE creat_at > DATE(NOW()) - 1
+
+listOfPatient = tuple(range(1, 501, 1))
 
 patientSql = """
 SELECT patient_hn, t_patient_id, CONCAT(patient_firstname, ' ', patient_lastname), patient_birthday, f_sex_id, patient_patient_mobile_phone 
@@ -12,7 +16,7 @@ WHERE patient_hn IN
 patientColumns = ['uid', 'cid', 'name', 'birthDate', 'gender', 'telecom']
 
 contactSql = """
-SELECT patient_hn, CONCAT(patient_contact_firstname, patient_contact_lastname), "Emergency contact person", patient_contact_sex_id, patient_contact_phone_number
+SELECT patient_hn, CONCAT(patient_contact_firstname, ' ', patient_contact_lastname), "Emergency contact person", patient_contact_sex_id, patient_contact_phone_number
 FROM t_patient
 WHERE patient_hn IN
 """ + str(listOfPatient)
@@ -36,7 +40,7 @@ isTakingColumns = ['uid', 'code', 'authoredOn', 'dosageInstruction', 'note']
 # AllergicIntorelanceSubstanceSql is the same as medication -> omit this part
 
 isAllergicSql = """
-SELECT a.t_patient_id, b_item_id, 'active', 'confirmed', 'allergy', 'medication', patient_drug_allergy_symptom, patient_drug_allergy_record_date_time
+SELECT p.patient_hn, b_item_id, 'active', 'confirmed', 'allergy', 'medication', patient_drug_allergy_symptom, patient_drug_allergy_record_date_time
 FROM t_patient_drug_allergy a, t_patient p
 WHERE a.t_patient_id = p.t_patient_id AND patient_hn IN
 """ + str(listOfPatient)
@@ -69,22 +73,46 @@ def transform(sql, columns):
     )
 
     mycursor = mydb.cursor()
-    # mycursor.execute(sql)
-    # myresult = mycursor.fetchall()
-    # df1 = pd.DataFrame.from_records(myresult, columns={'id': str, 'name': str, 'salary': float})
-    # df2 = pd.DataFrame.from_records(myresult, columns=['id', 'name', 'salary'])
-    # df1.info()
-    # df2.info()
-
     mycursor.execute(sql)
     result = mycursor.fetchall()
     df = pd.DataFrame.from_records(result, columns=columns)
+    if 'gender' in columns: df.set_index('uid', inplace=True)
+    # else: df.set_index('code', inplace=True)
     return df
 
-print(transform(patientSql, patientColumns))
-print(transform(contactSql, contactColumns))
-print(transform(medicationSql, medicationColumns))
-print(transform(isTakingSql, isTakingColumns))
-print(transform(isAllergicSql, isAllergicColumns))
-print(transform(conditionSql, conditionColumns))
-print(transform(isHavingSql, isHavingColumns))
+def job():
+    patient = transform(patientSql, patientColumns).to_dict('index')
+    contact = transform(contactSql, contactColumns).to_dict('index')
+    for i in patient: 
+        contact[i]['uid'] = i
+        patient[i]['uid'] = i
+        patient[i]['contact'] = contact[i]
+        patient[i]['isTaking'] = []
+        patient[i]['isAllergic'] = []
+        patient[i]['isHaving'] = []
+
+    isTaking = transform(isTakingSql, isTakingColumns).to_dict('index')
+    for i in isTaking:
+        uid = isTaking[i]['uid']
+        patient[uid]['isTaking'].append(isTaking[i])
+
+    isAllergic = transform(isAllergicSql, isAllergicColumns).to_dict('index')
+    for i in isAllergic:
+        uid = isAllergic[i]['uid']
+        patient[uid]['isAllergic'].append(isAllergic[i])
+
+    isHaving = transform(isHavingSql, isHavingColumns).to_dict('index')
+    for i in isHaving:
+        uid = isHaving[i]['uid']
+        patient[uid]['isHaving'].append(isHaving[i])
+
+    print(patient)
+    return
+
+schedule.every(10).seconds.do(job)
+while True:
+    schedule.run_pending()
+    time.sleep(1)
+
+# print(transform(medicationSql, medicationColumns))
+# print(transform(conditionSql, conditionColumns))
