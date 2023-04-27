@@ -1,11 +1,6 @@
 import mysql.connector
 import pandas as pd
 
-# sql = """SELECT * FROM professor 
-# WHERE pname LIKE 'Panus'"""
-
-# sql = """SELECT * FROM professor"""
-
 listOfPatient = (1, 3, 5, 10)
 
 patientSql = """
@@ -41,7 +36,7 @@ isTakingColumns = ['uid', 'code', 'authoredOn', 'dosageInstruction', 'note']
 # AllergicIntorelanceSubstanceSql is the same as medication -> omit this part
 
 isAllergicSql = """
-SELECT t_patient_id, b_item_id, 'active', 'confirmed', 'allergy', 'medication', patient_drug_allergy_symptom, patient_drug_allergy_record_date_time
+SELECT a.t_patient_id, b_item_id, 'active', 'confirmed', 'allergy', 'medication', patient_drug_allergy_symptom, patient_drug_allergy_record_date_time
 FROM t_patient_drug_allergy a, t_patient p
 WHERE a.t_patient_id = p.t_patient_id AND patient_hn IN
 """ + str(listOfPatient)
@@ -58,10 +53,10 @@ isHavingSql = """
 SELECT v.visit_hn, diag_icd10_number, CASE WHEN diag_icd10_active = 1 THEN 'active' ELSE 'resolved' END as active,
 'confirmed', 'problem-list-item', diag_icd10_notice, diag_icd10_record_date_time
 FROM t_visit v, t_diag_icd10 d
-WHERE v.t_visit_id = d.b_visit_clinic_id AND patient_hn IN
+WHERE v.t_visit_id = d.b_visit_clinic_id AND visit_hn IN
 """ + str(listOfPatient)
 
-isHaving = ['uid', 'code', 'clinicalStatus', 'verificationStatus', 'category', 'severity', 'recordDate']
+isHavingColumns = ['uid', 'code', 'clinicalStatus', 'verificationStatus', 'category', 'severity', 'recordDate']
 
 def transform(sql, columns):
 
@@ -84,7 +79,12 @@ def transform(sql, columns):
     mycursor.execute(sql)
     result = mycursor.fetchall()
     df = pd.DataFrame.from_records(result, columns=columns)
-    return df.to_json()
+    return df
 
 print(transform(patientSql, patientColumns))
 print(transform(contactSql, contactColumns))
+print(transform(medicationSql, medicationColumns))
+print(transform(isTakingSql, isTakingColumns))
+print(transform(isAllergicSql, isAllergicColumns))
+print(transform(conditionSql, conditionColumns))
+print(transform(isHavingSql, isHavingColumns))
